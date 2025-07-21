@@ -35,6 +35,7 @@ import org.jetbrains.annotations.NotNull;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * Manages {@link TeleportRequest}s between players.
@@ -68,7 +69,7 @@ public class RequestsManager {
      * @param recipient the {@link User} recipient of the request
      */
     public void addTeleportRequest(@NotNull TeleportRequest request, @NotNull User recipient) {
-        this.requests.computeIfAbsent(recipient.getUuid(), uuid -> new LinkedList<>()).addFirst(request);
+        this.requests.computeIfAbsent(recipient.getUuid(), uuid -> new ConcurrentLinkedDeque<>()).addFirst(request);
     }
 
     /**
@@ -91,7 +92,7 @@ public class RequestsManager {
      * @return the last received request, if present
      */
     public Optional<TeleportRequest> getLastTeleportRequest(@NotNull User recipient) {
-        return this.requests.getOrDefault(recipient.getUuid(), new LinkedList<>()).stream().findFirst();
+        return this.requests.getOrDefault(recipient.getUuid(), new ConcurrentLinkedDeque<>()).stream().findFirst();
     }
 
     /**
@@ -106,20 +107,22 @@ public class RequestsManager {
      * @return the last unexpired teleport request received from the requester, if present
      */
     public Optional<TeleportRequest> getTeleportRequest(@NotNull String requesterName, @NotNull User recipient) {
-        return this.requests.getOrDefault(recipient.getUuid(), new LinkedList<>()).stream()
+        return this.requests.getOrDefault(recipient.getUuid(), new ConcurrentLinkedDeque<>()).stream()
                 .filter(request -> request.getRequesterName().equalsIgnoreCase(requesterName))
                 .filter(request -> !request.hasExpired())
                 .findFirst()
-                .or(() -> this.requests.getOrDefault(recipient.getUuid(), new LinkedList<>()).stream()
+                .or(() -> this.requests.getOrDefault(recipient.getUuid(), new ConcurrentLinkedDeque<>()).stream()
                         .filter(request -> request.getRequesterName().equalsIgnoreCase(requesterName))
                         .findFirst());
     }
 
     public void sendTeleportAllRequest(@NotNull OnlineUser requester) {
-        final long expiry = Instant.now().getEpochSecond()
-                            + plugin.getSettings().getGeneral().getTeleportRequestExpiryTime();
-        final TeleportRequest request = new TeleportRequest(requester, TeleportRequest.Type.TPA_HERE, expiry);
+        final long expiry = Instant.now().getEpochSecond() + plugin.getSettings()
+                .getGeneral().getTeleportRequestExpiryTime();
+
+        // Send requests locally
         for (OnlineUser onlineUser : plugin.getOnlineUsers()) {
+            final TeleportRequest request = new TeleportRequest(requester, TeleportRequest.Type.TPA_HERE, expiry);
             if (onlineUser.equals(requester)) {
                 continue;
             }
@@ -127,6 +130,8 @@ public class RequestsManager {
             sendLocalTeleportRequest(request, onlineUser);
         }
 
+        // Send a request globally
+        final TeleportRequest request = new TeleportRequest(requester, TeleportRequest.Type.TPA_HERE, expiry);
         plugin.getBroker().ifPresent(b -> Message.builder()
                 .type(Message.MessageType.TELEPORT_REQUEST)
                 .payload(Payload.teleportRequest(request))
@@ -144,7 +149,7 @@ public class RequestsManager {
     public void sendTeleportRequest(@NotNull OnlineUser requester, @NotNull String targetUser,
                                     @NotNull TeleportRequest.Type type) throws IllegalArgumentException {
         final long expiry = Instant.now().getEpochSecond()
-                            + plugin.getSettings().getGeneral().getTeleportRequestExpiryTime();
+                + plugin.getSettings().getGeneral().getTeleportRequestExpiryTime();
         final TeleportRequest request = new TeleportRequest(requester, type, expiry);
 
         // Lookup the user locally first. If there's a username match globally, perform an exact local check
@@ -205,7 +210,7 @@ public class RequestsManager {
         plugin.fireEvent(plugin.getReceiveTeleportRequestEvent(recipient, request), (event -> {
             addTeleportRequest(request, recipient);
             plugin.getLocales().getLocale((request.getType() == TeleportRequest.Type.TPA ? "tpa" : "tpahere")
-                                          + "_request_received", request.getRequesterName())
+                            + "_request_received", request.getRequesterName())
                     .ifPresent(recipient::sendMessage);
             plugin.getLocales().getLocale("teleport_request_buttons", request.getRequesterName())
                     .ifPresent(recipient::sendMessage);

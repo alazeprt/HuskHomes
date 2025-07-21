@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
  */
 public class BukkitUser extends OnlineUser {
 
+    private static final String VANISHED_META_KEY = "vanished";
     private final NamespacedKey INVULNERABLE_KEY = new NamespacedKey((BukkitHuskHomes) plugin, "invulnerable");
     private final Player bukkitPlayer;
 
@@ -80,10 +81,14 @@ public class BukkitUser extends OnlineUser {
     }
 
     @Override
+    public boolean isPermissionSet(@NotNull String node) {
+        return bukkitPlayer.isPermissionSet(node);
+    }
+
+    @Override
     public boolean hasPermission(@NotNull String node) {
         return bukkitPlayer.hasPermission(node);
     }
-
 
     @Override
     @NotNull
@@ -141,11 +146,8 @@ public class BukkitUser extends OnlineUser {
 
     @Override
     public boolean isVanished() {
-        return bukkitPlayer.getMetadata("vanished")
-                .stream()
-                .map(MetadataValue::asBoolean)
-                .findFirst()
-                .orElse(false);
+        return bukkitPlayer.hasMetadata(VANISHED_META_KEY) && bukkitPlayer.getMetadata(VANISHED_META_KEY).stream()
+                .map(MetadataValue::asBoolean).findFirst().orElse(false);
     }
 
     @Override
@@ -175,4 +177,13 @@ public class BukkitUser extends OnlineUser {
         markedAsInvulnerable = false;
     }
 
+    /**
+     * Check if the teleporter can teleport.
+     *
+     * @return true if the teleport may complete.
+     */
+    @Override
+    public boolean isValid() {
+        return getHealth() > 0;
+    }
 }

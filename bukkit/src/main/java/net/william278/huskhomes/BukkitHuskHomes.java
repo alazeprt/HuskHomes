@@ -53,6 +53,8 @@ import net.william278.huskhomes.user.*;
 import net.william278.huskhomes.util.BukkitSavePositionProvider;
 import net.william278.huskhomes.util.BukkitTask;
 import net.william278.huskhomes.util.UnsafeBlocks;
+import net.william278.toilet.BukkitToilet;
+import net.william278.toilet.Toilet;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
@@ -84,6 +86,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     private AsynchronousScheduler asyncScheduler;
     private RegionalScheduler regionalScheduler;
     private MorePaperLib morePaperLib;
+    private Toilet toilet;
 
     private final Set<SavedUser> savedUsers = Sets.newHashSet();
     private final Set<UUID> currentlyOnWarmup = Sets.newConcurrentHashSet();
@@ -132,6 +135,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     public void onEnable() {
         this.audiences = BukkitAudiences.create(this);
         this.morePaperLib = new MorePaperLib(this);
+        this.toilet = BukkitToilet.create(getDumpOptions());
         this.enable();
         this.loadCommands();
     }
@@ -163,7 +167,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
                     () -> getSettings().getDatabase().getType().getDisplayName())
             );
             metrics.addCustomChart(new SimplePie("using_economy",
-                    () -> Boolean.toString(getSettings().getEconomy().isEnabled()))
+                    () -> Boolean.toString(isUsingEconomy()))
             );
             metrics.addCustomChart(new SimplePie("using_map",
                     () -> Boolean.toString(getSettings().getMapHook().isEnabled()))

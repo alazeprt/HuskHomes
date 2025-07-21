@@ -45,6 +45,9 @@ public class TeleportationException extends IllegalStateException {
             case TELEPORTER_NOT_FOUND -> plugin.getLocales()
                     .getLocale("error_player_not_found", args)
                     .ifPresent(user::sendMessage);
+            case TELEPORTER_INVALID -> plugin.getLocales()
+                    .getLocale("error_player_not_teleportable", args)
+                    .ifPresent(user::sendMessage);
             case TARGET_NOT_FOUND -> plugin.getLocales()
                     .getLocale("error_target_not_found")
                     .ifPresent(user::sendMessage);
@@ -80,7 +83,8 @@ public class TeleportationException extends IllegalStateException {
         WARMUP_ALREADY_MOVING,
         WORLD_NOT_FOUND,
         ILLEGAL_TARGET_COORDINATES,
-        CANNOT_TELEPORT_TO_SELF
+        CANNOT_TELEPORT_TO_SELF,
+        TELEPORTER_INVALID
     }
 
 }

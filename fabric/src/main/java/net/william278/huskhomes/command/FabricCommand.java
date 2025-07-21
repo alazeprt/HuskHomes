@@ -65,7 +65,8 @@ public class FabricCommand {
         final Map<String, Boolean> permissions = command.getAdditionalPermissions();
         permissions.forEach((permission, isOp) -> plugin.getPermissions().put(permission, isOp));
         PermissionCheckEvent.EVENT.register((player, node) -> {
-            if (permissions.containsKey(node) && permissions.get(node) && player.hasPermissionLevel(3)) {
+            if (permissions.containsKey(node) && permissions.get(node) &&
+                    (!(player instanceof ServerCommandSource source) || source.hasPermissionLevel(3))) {
                 return TriState.TRUE;
             }
             return TriState.DEFAULT;
@@ -73,10 +74,14 @@ public class FabricCommand {
 
         // Register aliases
         final LiteralCommandNode<ServerCommandSource> node = dispatcher.register(builder);
-        dispatcher.register(literal("huskhomes:" + command.getName())
+        dispatcher.register(literal("huskhomes:%s".formatted(command.getName()))
                 .requires(predicate).executes(getBrigadierExecutor()).redirect(node));
-        command.getAliases().forEach(alias -> dispatcher.register(literal(alias)
-                .requires(predicate).executes(getBrigadierExecutor()).redirect(node)));
+        command.getAliases().forEach(alias -> {
+            dispatcher.register(literal(alias).requires(predicate)
+                    .executes(getBrigadierExecutor()).redirect(node));
+            dispatcher.register(literal("huskhomes:%s".formatted(alias)).requires(predicate)
+                    .executes(getBrigadierExecutor()).redirect(node));
+        });
     }
 
     private com.mojang.brigadier.Command<ServerCommandSource> getBrigadierExecutor() {

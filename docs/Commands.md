@@ -373,7 +373,7 @@ This is a table of HuskHomes commands, how to use them, and their required permi
         <!-- /huskhomes command -->
         <tr><th colspan="5">Plugin management command</th></tr>
         <tr>
-            <td rowspan="10"><code>/huskhomes</code></td>
+            <td rowspan="12"><code>/huskhomes</code></td>
             <td><code>/huskhomes</code></td>
             <td>Use plugin management commands</td>
             <td><code>huskhomes.command.huskhomes</code></td>
@@ -404,6 +404,12 @@ This is a table of HuskHomes commands, how to use them, and their required permi
             <td align="center">❌</td>
         </tr>
         <tr>
+            <td><code>/huskhomes homeslots &lt;username&gt; [view|set|add|remove]</code></td>
+            <td>View &amp; manage a player's home slots (requires economy hook)</td>
+            <td><code>huskhomes.command.huskhomes.homeslots</code></td>
+            <td align="center">❌</td>
+        </tr>
+        <tr>
             <td><code>/huskhomes import</code></td>
             <td>Import data from another plugin</td>
             <td><code>huskhomes.command.huskhomes.import</code></td>
@@ -429,11 +435,17 @@ This is a table of HuskHomes commands, how to use them, and their required permi
             <td><code>huskhomes.command.huskhomes.status</code></td>
             <td align="center">❌</td>
         </tr>
+        <tr>
+            <td><code>/huskhomes dump</code></td>
+            <td>Perform a web dump of the plugin system & server status.</td>
+            <td><code>huskhomes.command.huskhomes.dump</code></td>
+            <td align="center">❌</td>
+        </tr>
     </tbody>
 </table>
 
 ### Notes
-&dagger; &mdash; If [Permission Restricted Warps](restricted-warps) are in use, the  `huskhomes.command.warp.(warp_name)` permission node will also be required to be able to view and use warps.
+&dagger; &mdash; If [Permission Restricted Warps](restricted-warps) are in use, the  `huskhomes.warp.<name>` permission node will also be required to be able to list, use, edit and delete (but not set) warps. The `huskhomes.warp.*` wildcard permission grants the ability to access all warps.
 
 &ddagger; &mdash; Requires `return_by_death` to be enabled in [`config.yml`](config-files).
 

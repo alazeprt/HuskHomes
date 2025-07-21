@@ -22,35 +22,39 @@ package net.william278.huskhomes.command;
 import de.themoep.minedown.adventure.MineDown;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.william278.desertwell.about.AboutMenu;
 import net.william278.desertwell.util.UpdateChecker;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.config.Locales;
 import net.william278.huskhomes.hook.PluginHook;
 import net.william278.huskhomes.importer.Importer;
+import net.william278.huskhomes.position.Home;
 import net.william278.huskhomes.user.CommandUser;
 import net.william278.huskhomes.user.SavedUser;
 import net.william278.huskhomes.user.User;
+import net.william278.huskhomes.util.StatusLine;
 import net.william278.paginedown.PaginatedList;
-import org.apache.commons.text.WordUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class HuskHomesCommand extends Command implements TabCompletable {
+public class HuskHomesCommand extends Command implements UserListTabCompletable {
 
     private static final Map<String, Boolean> SUB_COMMANDS = Map.of(
             "about", false,
             "help", false,
             "reload", true,
             "status", true,
+            "dump", true,
+            "homeslots", true,
             "import", true,
             "delete", true,
             "update", true
@@ -122,6 +126,28 @@ public class HuskHomesCommand extends Command implements TabCompletable {
                         Arrays.stream(StatusLine.values()).map(s -> s.get(plugin)).toList()
                 ));
             }
+            case "dump" -> {
+                if (!parseStringArg(args, 1).map(s -> s.equals("confirm")).orElse(false)) {
+                    getPlugin().getLocales().getLocale("system_dump_confirm").ifPresent(executor::sendMessage);
+                    return;
+                }
+
+                getPlugin().getLocales().getLocale("system_dump_started").ifPresent(executor::sendMessage);
+                plugin.runAsync(() -> {
+                    final String url = plugin.createDump(executor);
+                    getPlugin().getLocales().getLocale("system_dump_ready").ifPresent(executor::sendMessage);
+                    executor.sendMessage(Component.text(url).clickEvent(ClickEvent.openUrl(url))
+                            .decorate(TextDecoration.UNDERLINED).color(NamedTextColor.GRAY));
+                });
+            }
+            case "homeslots" -> {
+                if (!plugin.isUsingEconomy() || args.length <= 1) {
+                    plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
+                            .ifPresent(executor::sendMessage);
+                    return;
+                }
+                this.manageHomeSlots(executor, removeFirstArg(args));
+            }
             case "import" -> {
                 if (plugin.getImporters().isEmpty()) {
                     plugin.getLocales().getLocale("error_no_importers_available")
@@ -170,6 +196,64 @@ public class HuskHomesCommand extends Command implements TabCompletable {
                         plugin.getPluginVersion().toString()).ifPresent(executor::sendMessage);
             });
             default -> plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
+                    .ifPresent(executor::sendMessage);
+        }
+    }
+
+    // Manage a user's home slots
+    private void manageHomeSlots(@NotNull CommandUser executor, @NotNull String[] args) {
+        // Parse args
+        final Optional<SavedUser> savedUser = parseStringArg(args, 0)
+                .flatMap(u -> plugin.getDatabase().getUser(u));
+        final String actionArg = parseStringArg(args, 1).orElse("view").toLowerCase(Locale.ENGLISH);
+        final Optional<Integer> valueArg = parseIntArg(args, 2);
+
+        // Resolve user
+        if (savedUser.isEmpty()) {
+            plugin.getLocales().getLocale("error_player_not_found", args[0])
+                    .ifPresent(executor::sendMessage);
+            return;
+        }
+
+        // Perform actions
+        final SavedUser user = savedUser.get();
+        switch (actionArg) {
+            case "view" -> {
+                final List<Home> homes = plugin.getDatabase().getHomes(user.getUser());
+                plugin.getLocales().getLocale("user_home_slots_status", user.getUsername(),
+                                Integer.toString(user.getHomeSlots()), Integer.toString(homes.size()))
+                        .ifPresent(executor::sendMessage);
+            }
+            case "set", "add", "remove" -> {
+                if (valueArg.isEmpty()) {
+                    plugin.getLocales().getLocale("error_invalid_syntax",
+                                    "/%s homeslots <set|add|remove> <value>".formatted(getName()))
+                            .ifPresent(executor::sendMessage);
+                    return;
+                }
+
+                // Calculate new slots and apply
+                int value = valueArg.orElseThrow();
+                if (actionArg.equals("add")) {
+                    value = user.getHomeSlots() + value;
+                } else if (actionArg.equals("remove")) {
+                    value = user.getHomeSlots() - value;
+                }
+                if (value < 0) {
+                    plugin.getLocales().getLocale("error_invalid_syntax",
+                                    "/%s homeslots [view|set|add|remove]".formatted(getName()))
+                            .ifPresent(executor::sendMessage);
+                    return;
+                }
+
+                user.setHomeSlots(value);
+                plugin.getDatabase().updateUserData(user);
+                plugin.getLocales().getLocale("user_home_slots_updated",
+                                user.getUsername(), Integer.toString(user.getHomeSlots()))
+                        .ifPresent(executor::sendMessage);
+            }
+            default -> plugin.getLocales().getLocale("error_invalid_syntax",
+                            "/%s homeslots [view|set|add|remove]".formatted(getName()))
                     .ifPresent(executor::sendMessage);
         }
     }
@@ -347,76 +431,24 @@ public class HuskHomesCommand extends Command implements TabCompletable {
             case 2 -> switch (args[0].toLowerCase()) {
                 case "help" -> IntStream.rangeClosed(1, getCommandList(user).getTotalPages())
                         .mapToObj(Integer::toString).toList();
+                case "dump" -> List.of("confirm");
+                case "homeslots" -> UserListTabCompletable.super.getUsernameList();
                 case "import" -> List.of("start", "list");
                 case "delete" -> List.of("player", "homes", "warps");
                 default -> null;
             };
-            case 3 -> {
-                if (!args[0].equalsIgnoreCase("import") && !args[1].equalsIgnoreCase("start")) {
-                    yield null;
+            case 3 -> switch (args[0].toLowerCase()) {
+                case "homeslots" -> List.of("view", "add", "remove", "set");
+                case "import" -> {
+                    if (!args[1].equalsIgnoreCase("start")) {
+                        yield null;
+                    }
+                    yield plugin.getImporters().stream().map(Importer::getName).toList();
                 }
-                yield plugin.getImporters().stream().map(Importer::getName).toList();
-            }
+                default -> null;
+            };
             default -> null;
         };
-    }
-
-    private enum StatusLine {
-        PLUGIN_VERSION(plugin -> Component.text("v" + plugin.getPluginVersion().toStringWithoutMetadata())
-                .appendSpace().append(plugin.getPluginVersion().getMetadata().isBlank() ? Component.empty()
-                        : Component.text("(build " + plugin.getPluginVersion().getMetadata() + ")"))),
-        SERVER_VERSION(plugin -> Component.text(plugin.getServerType())),
-        LANGUAGE(plugin -> Component.text(plugin.getSettings().getLanguage())),
-        MINECRAFT_VERSION(plugin -> Component.text(plugin.getMinecraftVersion().toString())),
-        JAVA_VERSION(plugin -> Component.text(System.getProperty("java.version"))),
-        JAVA_VENDOR(plugin -> Component.text(System.getProperty("java.vendor"))),
-        SERVER_NAME(plugin -> Component.text(plugin.getServerName())),
-        DATABASE_TYPE(plugin -> Component.text(plugin.getSettings().getDatabase().getType().getDisplayName())),
-        IS_DATABASE_LOCAL(plugin -> getLocalhostBoolean(plugin.getSettings().getDatabase().getCredentials().getHost())),
-        USING_REDIS_SENTINEL(plugin -> getBoolean(!plugin.getSettings().getCrossServer().getRedis().getSentinel()
-                .getMasterName().isBlank())),
-        USING_REDIS_PASSWORD(plugin -> getBoolean(!plugin.getSettings().getCrossServer().getRedis().getPassword()
-                .isBlank())),
-        REDIS_USING_SSL(plugin -> getBoolean(!plugin.getSettings().getCrossServer().getRedis().isUseSsl())),
-        IS_REDIS_LOCAL(plugin -> getLocalhostBoolean(plugin.getSettings().getCrossServer().getRedis().getHost())),
-        LOADED_HOOKS(plugin -> Component.join(
-                JoinConfiguration.commas(true),
-                plugin.getHooks().stream().filter(hook -> !(hook instanceof Importer))
-                        .map(hook -> Component.text(hook.getName())).toList()
-        )),
-        LOADED_IMPORTERS(plugin -> Component.join(
-                JoinConfiguration.commas(true),
-                plugin.getImporters().stream().map(hook -> Component.text(hook.getName())).toList()
-        ));
-
-        private final Function<HuskHomes, Component> supplier;
-
-        StatusLine(@NotNull Function<HuskHomes, Component> supplier) {
-            this.supplier = supplier;
-        }
-
-        @NotNull
-        private Component get(@NotNull HuskHomes plugin) {
-            return Component
-                    .text("•").appendSpace()
-                    .append(Component.text(
-                            WordUtils.capitalizeFully(name().replaceAll("_", " ")),
-                            TextColor.color(0x848484)
-                    ))
-                    .append(Component.text(':')).append(Component.space().color(NamedTextColor.WHITE))
-                    .append(supplier.apply(plugin));
-        }
-
-        @NotNull
-        private static Component getBoolean(boolean value) {
-            return Component.text(value ? "Yes" : "No", value ? NamedTextColor.GREEN : NamedTextColor.RED);
-        }
-
-        @NotNull
-        private static Component getLocalhostBoolean(@NotNull String value) {
-            return getBoolean(value.equals("127.0.0.1") || value.equals("0.0.0.0")
-                              || value.equals("localhost") || value.equals("::1"));
-        }
     }
 
 }

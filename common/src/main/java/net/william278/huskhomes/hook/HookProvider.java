@@ -20,7 +20,6 @@
 package net.william278.huskhomes.hook;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.importer.Importer;
@@ -63,7 +62,7 @@ public interface HookProvider extends MapHookProvider {
     default void loadHooks(@NotNull PluginHook.Register... register) {
         final Set<PluginHook.Register> registers = Arrays.stream(register).collect(Collectors.toSet());
         final List<Hook> load = getAvailableHooks().stream().filter(h -> registers.contains(h.getRegister())).toList();
-        setHooks(Sets.newHashSet(load));
+        getHooks().addAll(load);
     }
 
     default void registerHooks(@NotNull PluginHook.Register... register) {
@@ -112,8 +111,11 @@ public interface HookProvider extends MapHookProvider {
         final Settings settings = getPlugin().getSettings();
 
         // Common hooks
-        if (isDependencyAvailable("Plan")) {
+        if (isDependencyAvailable("Plan") && settings.getPlan().isEnabled()) {
             hooks.add(new PlanHook(getPlugin()));
+        }
+        if (isDependencyAvailable("LuckPerms") && settings.getLuckperms().isEnabled()) {
+            hooks.add(new LuckPermsHook(getPlugin()));
         }
 
         // Map hooks
