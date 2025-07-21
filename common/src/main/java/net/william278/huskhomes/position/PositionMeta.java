@@ -39,7 +39,7 @@ public class PositionMeta {
     private Map<String, String> tags;
     private Instant creationTime;
 
-    private PositionMeta(@NotNull String name, @NotNull String description,
+    private PositionMeta(@NotNull String name, String description,
                          @NotNull Instant creationTime, @Nullable String serializedTags) {
         this.setName(name);
         this.setDescription(description);
@@ -48,13 +48,13 @@ public class PositionMeta {
     }
 
     @NotNull
-    public static PositionMeta from(@NotNull String name, @NotNull String description,
+    public static PositionMeta from(@NotNull String name, String description,
                                     @NotNull Instant creationTime, @Nullable String serializedTags) {
         return new PositionMeta(name, description, creationTime, serializedTags);
     }
 
     @NotNull
-    public static PositionMeta create(@NotNull String name, @NotNull String description) {
+    public static PositionMeta create(@NotNull String name, String description) {
         return PositionMeta.from(name, description, Instant.now(), "");
     }
 
@@ -121,7 +121,7 @@ public class PositionMeta {
      */
     @NotNull
     public String getDescription() {
-        return description;
+        return description == null ? "" : description;
     }
 
     public void setDescription(@Nullable String description) {
